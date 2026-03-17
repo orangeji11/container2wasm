@@ -29,16 +29,16 @@ ARG JS_OUTPUT_NAME=out # for emscripten; must not include "."
 ARG OPTIMIZATION_MODE=wizer # "wizer" or "native"
 # ARG OPTIMIZATION_MODE=native
 
-ARG TINYEMU_REPO=https://github.com/ktock/tinyemu-c2w
+ARG TINYEMU_REPO=https://ghfast.top/github.com/ktock/tinyemu-c2w
 ARG TINYEMU_REPO_VERSION=e4e9bd198f9c0505ab4c77a6a9d038059cd1474a
 
-ARG BOCHS_REPO=https://github.com/ktock/Bochs
+ARG BOCHS_REPO=https://ghfast.top/github.com/ktock/Bochs
 ARG BOCHS_REPO_VERSION=a88d1f687ec83ff82b5318f59dcecb8dab44fc83
 
-ARG QEMU_REPO=https://github.com/ktock/qemu-wasm
+ARG QEMU_REPO=https://ghfast.top/github.com/ktock/qemu-wasm
 ARG QEMU_REPO_VERSION=8604ed49a3cde392890b014a8d5a959c8a2fe72a
 
-ARG SOURCE_REPO=https://github.com/ktock/container2wasm
+ARG SOURCE_REPO=https://ghfast.top/github.com/ktock/container2wasm
 ARG SOURCE_REPO_VERSION=v0.8.3
 
 ARG ZLIB_VERSION=1.3.2
@@ -88,7 +88,7 @@ RUN git clone --depth 100 ${QEMU_REPO} /qemu && \
 FROM scratch AS qemu-repo
 COPY --link --from=qemu-repo-base /qemu /
 
-FROM golang:1.26-bookworm AS golang-base
+FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/golang:1.24-bullseye AS golang-base
 
 FROM golang-base AS bundle-dev
 ARG TARGETPLATFORM
@@ -101,7 +101,7 @@ COPY --link --from=assets / /work
 WORKDIR /work
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    go build -o /bin/create-spec ./cmd/create-spec
+    GOPROXY="https://goproxy.cn" go build -o /bin/create-spec ./cmd/create-spec
 COPY --link --from=oci-image-src / /oci
 # This step creates the following files
 # <vm-rootfs>/oci/rootfs          : rootfs dir this Dockerfile creates container's rootfs and used by the container.
@@ -132,7 +132,7 @@ RUN apt-get update && apt-get install -y gcc-riscv64-linux-gnu libc-dev-riscv64-
 
 FROM gcc-riscv64-linux-gnu-base AS bbl-dev
 WORKDIR /work-buildroot/
-RUN git clone https://github.com/riscv-software-src/riscv-pk
+RUN git clone https://ghfast.top/github.com/riscv-software-src/riscv-pk
 WORKDIR /work-buildroot/riscv-pk
 RUN git checkout 7e9b671c0415dfd7b562ac934feb9380075d4aa2
 RUN mkdir build
@@ -151,7 +151,7 @@ FROM gcc-riscv64-linux-gnu-base AS linux-riscv64-dev-common
 RUN apt-get update && apt-get install -y gperf flex bison bc
 RUN mkdir /work-buildlinux
 WORKDIR /work-buildlinux
-RUN git clone -b v6.1 --depth 1 https://github.com/torvalds/linux
+RUN git clone -b v6.1 --depth 1 https://ghfast.top/github.com/torvalds/linux
 
 FROM linux-riscv64-dev-common AS linux-riscv64-dev
 WORKDIR /work-buildlinux/linux
@@ -174,22 +174,22 @@ COPY --link --from=assets / /work
 WORKDIR /work
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    GOARCH=riscv64 go build -ldflags "-s -w -extldflags '-static'" -tags "osusergo netgo static_build" -o /out/init ./cmd/init
+    GOARCH=riscv64 GOPROXY="https://goproxy.cn" go build -ldflags "-s -w -extldflags '-static'" -tags "osusergo netgo static_build" -o /out/init ./cmd/init
 
 FROM golang-base AS runc-riscv64-dev
 ARG RUNC_VERSION
 RUN apt-get update -y && apt-get install -y gcc-riscv64-linux-gnu libc-dev-riscv64-cross git make gperf
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    git clone https://github.com/opencontainers/runc.git /go/src/github.com/opencontainers/runc && \
-    cd /go/src/github.com/opencontainers/runc && \
+    git clone https://ghfast.top/github.com/opencontainers/runc.git /go/src/ghfast.top/github.com/opencontainers/runc && \
+    cd /go/src/ghfast.top/github.com/opencontainers/runc && \
     git checkout "${RUNC_VERSION}" && \
     # mkdir -p /opt/libseccomp && ./script/seccomp.sh "2.5.4" /opt/libseccomp riscv64 && \
     make static GOARCH=riscv64 CC=riscv64-linux-gnu-gcc EXTRA_LDFLAGS='-s -w' BUILDTAGS="" && \
     mkdir -p /out/ && mv runc /out/runc
 
 FROM gcc-riscv64-linux-gnu-base AS vmtouch-riscv64-dev
-RUN git clone https://github.com/hoytech/vmtouch.git && \
+RUN git clone https://ghfast.top/github.com/hoytech/vmtouch.git && \
     cd vmtouch && \
     CC="riscv64-linux-gnu-gcc -static" make && \
     mkdir /out && mv vmtouch /out/
@@ -231,11 +231,11 @@ RUN for i in $(./busybox --list) ; do ln -s busybox /out/bin/$i ; done
 RUN mkdir -p /out/usr/share/udhcpc/ && cp ./examples/udhcp/simple.script /out/usr/share/udhcpc/default.script
 
 FROM gcc-riscv64-linux-gnu-base AS tini-riscv64-dev
-# https://github.com/krallin/tini#building-tini
+# https://ghfast.top/github.com/krallin/tini#building-tini
 RUN apt-get update -y && apt-get install -y cmake
 ENV CFLAGS="-DPR_SET_CHILD_SUBREAPER=36 -DPR_GET_CHILD_SUBREAPER=37"
 WORKDIR /work
-RUN git clone -b v0.19.0 https://github.com/krallin/tini
+RUN git clone -b v0.19.0 https://ghfast.top/github.com/krallin/tini
 WORKDIR /work/tini
 ENV CC="riscv64-linux-gnu-gcc -static"
 RUN cmake . && make && mkdir /out/ && mv tini /out/
@@ -274,12 +274,12 @@ ARG WIZER_VERSION
 RUN apt-get update -y && apt-get install -y make curl git gcc xz-utils
 
 WORKDIR /wasi
-RUN curl -o wasi-sdk.tar.gz -fSL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/wasi-sdk-${WASI_SDK_VERSION_FULL}-linux.tar.gz && \
+RUN curl -o wasi-sdk.tar.gz -fSL https://ghfast.top/github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/wasi-sdk-${WASI_SDK_VERSION_FULL}-linux.tar.gz && \
     tar xvf wasi-sdk.tar.gz && rm wasi-sdk.tar.gz
 ENV WASI_SDK_PATH=/wasi/wasi-sdk-${WASI_SDK_VERSION_FULL}
 
 WORKDIR /work/
-RUN git clone https://github.com/kateinoigakukun/wasi-vfs.git --recurse-submodules && \
+RUN git clone https://ghfast.top/github.com/kateinoigakukun/wasi-vfs.git --recurse-submodules && \
     cd wasi-vfs && \
     git checkout "${WASI_VFS_VERSION}" && \
     cargo build --target wasm32-unknown-unknown && \
@@ -289,7 +289,7 @@ RUN git clone https://github.com/kateinoigakukun/wasi-vfs.git --recurse-submodul
     cargo clean
 
 WORKDIR /work/
-RUN git clone https://github.com/bytecodealliance/wizer && \
+RUN git clone https://ghfast.top/github.com/bytecodealliance/wizer && \
     cd wizer && \
     git checkout "${WIZER_VERSION}" && \
     cargo build --bin wizer --all-features && \
@@ -348,7 +348,7 @@ FROM wasi-tinyemu AS wasi-ppc64le
 FROM wasi-tinyemu AS wasi-s390
 
 FROM emscripten/emsdk:$EMSDK_VERSION_QEMU AS glib-emscripten-base
-# Porting glib to emscripten inspired by https://github.com/emscripten-core/emscripten/issues/11066
+# Porting glib to emscripten inspired by https://ghfast.top/github.com/emscripten-core/emscripten/issues/11066
 ENV TARGET=/glib-emscripten/target
 ENV CFLAGS="-O2 -matomics -mbulk-memory -DNDEBUG -sWASM_BIGINT -DWASM_BIGINT -pthread -sMALLOC=emmalloc  -sASYNCIFY=1 "
 ENV CXXFLAGS="$CFLAGS"
@@ -383,7 +383,7 @@ RUN make install
 FROM glib-emscripten-base AS libffi-emscripten-dev
 ARG FFI_VERSION
 RUN mkdir -p /libffi
-RUN git clone https://github.com/libffi/libffi /libffi
+RUN git clone https://ghfast.top/github.com/libffi/libffi /libffi
 WORKDIR /libffi
 RUN git checkout $FFI_VERSION
 RUN autoreconf -fiv
@@ -482,7 +482,7 @@ FROM gcc-x86-64-linux-gnu-base AS linux-amd64-dev-common
 RUN apt-get update && apt-get install -y gperf flex bison bc
 RUN mkdir /work-buildlinux
 WORKDIR /work-buildlinux
-RUN git clone -b v6.1 --depth 1 https://github.com/torvalds/linux
+RUN git clone -b v6.1 --depth 1 https://ghfast.top/github.com/torvalds/linux
 
 FROM linux-amd64-dev-common AS linux-amd64-dev
 RUN apt-get install -y libelf-dev
@@ -522,18 +522,18 @@ ARG RUNC_VERSION
 RUN apt-get update -y && apt-get install -y git make gperf
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    git clone https://github.com/opencontainers/runc.git /go/src/github.com/opencontainers/runc && \
-    cd /go/src/github.com/opencontainers/runc && \
+    git clone https://ghfast.top/github.com/opencontainers/runc.git /go/src/ghfast.top/github.com/opencontainers/runc && \
+    cd /go/src/ghfast.top/github.com/opencontainers/runc && \
     git checkout "${RUNC_VERSION}" && \
     make static GOARCH=amd64 CC=gcc EXTRA_LDFLAGS='-s -w' BUILDTAGS="" EXTRA_LDFLAGS='-s -w' BUILDTAGS="" && \
     mkdir -p /out/ && mv runc /out/runc
 
 FROM gcc-x86-64-linux-gnu-base AS tini-amd64-dev
-# https://github.com/krallin/tini#building-tini
+# https://ghfast.top/github.com/krallin/tini#building-tini
 RUN apt-get update -y && apt-get install -y cmake
 ENV CFLAGS="-DPR_SET_CHILD_SUBREAPER=36 -DPR_GET_CHILD_SUBREAPER=37"
 WORKDIR /work
-RUN git clone -b v0.19.0 https://github.com/krallin/tini
+RUN git clone -b v0.19.0 https://ghfast.top/github.com/krallin/tini
 WORKDIR /work/tini
 ENV CC="x86_64-linux-gnu-gcc -static"
 RUN cmake . && make && mkdir /out/ && mv tini /out/
@@ -567,10 +567,10 @@ COPY --link --from=assets / /work
 WORKDIR /work
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    GOARCH=amd64 go build -ldflags "-s -w -extldflags '-static'" -tags "osusergo netgo static_build" -o /out/init ./cmd/init
+    GOARCH=amd64 GOPROXY="https://goproxy.cn" go build -ldflags "-s -w -extldflags '-static'" -tags "osusergo netgo static_build" -o /out/init ./cmd/init
 
 FROM gcc-x86-64-linux-gnu-base AS vmtouch-amd64-dev
-RUN git clone https://github.com/hoytech/vmtouch.git && \
+RUN git clone https://ghfast.top/github.com/hoytech/vmtouch.git && \
     cd vmtouch && \
     CC="x86_64-linux-gnu-gcc -static" make && \
     mkdir /out && mv vmtouch /out/
@@ -606,7 +606,7 @@ FROM gcc-aarch64-linux-gnu-base AS linux-aarch64-dev-common
 RUN apt-get update && apt-get install -y gperf flex bison bc
 RUN mkdir /work-buildlinux
 WORKDIR /work-buildlinux
-RUN git clone -b v6.1 --depth 1 https://github.com/torvalds/linux
+RUN git clone -b v6.1 --depth 1 https://ghfast.top/github.com/torvalds/linux
 
 FROM linux-aarch64-dev-common AS linux-aarch64-dev-qemu
 RUN apt-get install -y libelf-dev
@@ -647,24 +647,24 @@ RUN apt-get update -y && apt-get install -y git make gperf
 RUN apt-get update -y && apt-get install -y gcc-aarch64-linux-gnu libc-dev-arm64-cross
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    git clone https://github.com/opencontainers/runc.git /go/src/github.com/opencontainers/runc && \
-    cd /go/src/github.com/opencontainers/runc && \
+    git clone https://ghfast.top/github.com/opencontainers/runc.git /go/src/ghfast.top/github.com/opencontainers/runc && \
+    cd /go/src/ghfast.top/github.com/opencontainers/runc && \
     git checkout "${RUNC_VERSION}" && \
     make static GOARCH=arm64 CC=aarch64-linux-gnu-gcc EXTRA_LDFLAGS='-s -w' BUILDTAGS="" EXTRA_LDFLAGS='-s -w' BUILDTAGS="" && \
     mkdir -p /out/ && mv runc /out/runc
 
 FROM gcc-aarch64-linux-gnu-base AS vmtouch-aarch64-dev
-RUN git clone https://github.com/hoytech/vmtouch.git && \
+RUN git clone https://ghfast.top/github.com/hoytech/vmtouch.git && \
     cd vmtouch && \
     CC="aarch64-linux-gnu-gcc -static" make && \
     mkdir /out && mv vmtouch /out/
 
 FROM gcc-aarch64-linux-gnu-base AS tini-aarch64-dev
-# https://github.com/krallin/tini#building-tini
+# https://ghfast.top/github.com/krallin/tini#building-tini
 RUN apt-get update -y && apt-get install -y cmake
 ENV CFLAGS="-DPR_SET_CHILD_SUBREAPER=36 -DPR_GET_CHILD_SUBREAPER=37"
 WORKDIR /work
-RUN git clone -b v0.19.0 https://github.com/krallin/tini
+RUN git clone -b v0.19.0 https://ghfast.top/github.com/krallin/tini
 WORKDIR /work/tini
 ENV CC="aarch64-linux-gnu-gcc -static"
 RUN cmake . && make && mkdir /out/ && mv tini /out/
@@ -674,7 +674,7 @@ COPY --link --from=assets / /work
 WORKDIR /work
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    GOARCH=arm64 go build -ldflags "-s -w -extldflags '-static'" -tags "osusergo netgo static_build" -o /out/init ./cmd/init
+    GOARCH=arm64 GOPROXY="https://goproxy.cn" go build -ldflags "-s -w -extldflags '-static'" -tags "osusergo netgo static_build" -o /out/init ./cmd/init
 
 FROM ubuntu:22.04 AS rootfs-aarch64-dev
 RUN apt-get update -y && apt-get install -y mkisofs
@@ -739,7 +739,7 @@ RUN mkdir /out/
 WORKDIR /work
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    go build -o /out/get-qemu-state ./cmd/get-qemu-state
+    GOPROXY="https://goproxy.cn" go build -o /out/get-qemu-state ./cmd/get-qemu-state
 
 FROM ubuntu:22.04 AS qemu-config-dev-amd64
 ARG LINUX_LOGLEVEL
@@ -967,12 +967,12 @@ ARG WIZER_VERSION
 RUN apt-get update -y && apt-get install -y make curl git gcc xz-utils
 
 WORKDIR /wasi
-RUN curl -o wasi-sdk.tar.gz -fSL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/wasi-sdk-${WASI_SDK_VERSION_FULL}-linux.tar.gz && \
+RUN curl -o wasi-sdk.tar.gz -fSL https://ghfast.top/github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/wasi-sdk-${WASI_SDK_VERSION_FULL}-linux.tar.gz && \
     tar xvf wasi-sdk.tar.gz && rm wasi-sdk.tar.gz
 ENV WASI_SDK_PATH=/wasi/wasi-sdk-${WASI_SDK_VERSION_FULL}
 
 WORKDIR /work/
-RUN git clone https://github.com/kateinoigakukun/wasi-vfs.git --recurse-submodules && \
+RUN  git clone https://ghfast.top/github.com/kateinoigakukun/wasi-vfs.git --recurse-submodules && \
     cd wasi-vfs && \
     git checkout "${WASI_VFS_VERSION}" && \
     cargo build --target wasm32-unknown-unknown && \
@@ -982,7 +982,7 @@ RUN git clone https://github.com/kateinoigakukun/wasi-vfs.git --recurse-submodul
     cargo clean
 
 WORKDIR /work/
-RUN git clone https://github.com/bytecodealliance/wizer && \
+RUN git clone https://ghfast.top/github.com/bytecodealliance/wizer && \
     cd wizer && \
     git checkout "${WIZER_VERSION}" && \
     cargo build --bin wizer --all-features && \
@@ -990,7 +990,7 @@ RUN git clone https://github.com/bytecodealliance/wizer && \
     mv include target/debug/wizer /tools/wizer/ && \
     cargo clean
 
-RUN wget -O /tmp/binaryen.tar.gz https://github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/binaryen-version_${BINARYEN_VERSION}-x86_64-linux.tar.gz
+RUN wget -O /tmp/binaryen.tar.gz https://ghfast.top/github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/binaryen-version_${BINARYEN_VERSION}-x86_64-linux.tar.gz
 RUN mkdir -p /binaryen
 RUN tar -C /binaryen -zxvf /tmp/binaryen.tar.gz
 

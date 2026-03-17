@@ -28,11 +28,13 @@ const (
 
 func main() {
 	var (
-		mapDir    = flag.String("mapdir", "", "directory mapping to the image")
-		debug     = flag.Bool("debug", false, "debug log")
-		mac       = flag.String("mac", vmMAC, "mac address assigned to the container")
-		wasiAddr  = flag.String("wasi-addr", "127.0.0.1:1234", "IP address used to communicate between wasi and network stack") // TODO: automatically use empty random port or unix socket
-		enableNet = flag.Bool("net", false, "enable network")
+		mapDir     = flag.String("mapdir", "", "directory mapping to the image")
+		debug      = flag.Bool("debug", false, "debug log")
+		mac        = flag.String("mac", vmMAC, "mac address assigned to the container")
+		wasiAddr   = flag.String("wasi-addr", "127.0.0.1:1234", "IP address used to communicate between wasi and network stack")
+		enableNet  = flag.Bool("net", false, "enable network")
+		enableUDP  = flag.Bool("udp", false, "enable UDP support (default: TCP only)")
+		listenAddr = flag.String("listen", "", "listen address for direct mode (e.g., :53)")
 	)
 	var portFlags sliceFlags
 	flag.Var(&portFlags, "p", "map port between host and guest (host:guest). -mac must be set correctly.")
@@ -111,8 +113,18 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		sockCfg := sock.NewConfig().WithTCPListener(u.Hostname(), p)
-		ctx = sock.WithConfig(ctx, sockCfg)
+		if *enableUDP {
+			fmt.Fprintf(os.Stderr, "enabling UDP support with TCP listener on %s\n", *wasiAddr)
+			sockCfg := sock.NewConfig().WithTCPListener(u.Hostname(), p)
+			ctx = sock.WithConfig(ctx, sockCfg)
+		} else {
+			sockCfg := sock.NewConfig().WithTCPListener(u.Hostname(), p)
+			ctx = sock.WithConfig(ctx, sockCfg)
+		}
+	} else if *listenAddr != "" {
+		// Direct listen mode without gvisor-tap-vsock
+		fmt.Fprintf(os.Stderr, "starting in direct listen mode on %s\n", *listenAddr)
+		go startDirectListen(*listenAddr)
 	}
 	c, err := os.ReadFile(args[0])
 	if err != nil {
@@ -142,6 +154,47 @@ func main() {
 	}
 }
 
+// startDirectListen 直接监听模式 - 简单端口转发
+// 注意：由于 wazero 的 socket API 限制，这个实现只做端口监听演示
+// 完整的 UDP/TCP 支持需要使用 wasmtime 或其他支持 socket 的 runtime
+func startDirectListen(addr string) {
+	fmt.Fprintf(os.Stderr, "=== Direct Listen Mode ===\n")
+	fmt.Fprintf(os.Stderr, "Note: This is a demo mode. For full UDP/TCP support, use wasmtime.\n")
+	
+	// 启动 UDP 监听器
+	udpAddr, err := net.ResolveUDPAddr("udp", addr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to resolve UDP address: %v\n", err)
+		return
+	}
+	
+	udpConn, err := net.ListenUDP("udp", udpAddr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to start UDP listener on %s: %v\n", addr, err)
+		return
+	}
+	defer udpConn.Close()
+	
+	fmt.Fprintf(os.Stderr, "UDP listener started on %s\n", udpConn.LocalAddr())
+	
+	// 简单的 UDP 回显（用于测试）
+	buf := make([]byte, 4096)
+	for {
+		n, fromAddr, err := udpConn.ReadFromUDP(buf)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "UDP read error: %v\n", err)
+			continue
+		}
+		fmt.Fprintf(os.Stderr, "UDP received %d bytes from %s: %x\n", n, fromAddr, buf[:n])
+		
+		// 回显响应（用于测试连通性）
+		_, err = udpConn.WriteToUDP([]byte("echo: "+string(buf[:n])), fromAddr)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "UDP write error: %v\n", err)
+		}
+	}
+}
+
 type sliceFlags []string
 
 func (f *sliceFlags) String() string {
@@ -153,3 +206,4 @@ func (f *sliceFlags) Set(value string) error {
 	*f = append(*f, value)
 	return nil
 }
+

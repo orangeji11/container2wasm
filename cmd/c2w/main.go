@@ -183,7 +183,8 @@ func rootAction(clicontext *cli.Context) error {
 
 func build(builderPath string, srcImgPath string, destDir, destFile string, clicontext *cli.Context) error {
 	buildxArgs := []string{
-		"buildx", "build", "--progress=plain",
+		"buildx", "build",
+		"--progress=plain",
 		"--build-arg", fmt.Sprintf("TARGETARCH=%s", clicontext.String("target-arch")),
 		"--build-arg", fmt.Sprintf("TARGETPLATFORM=linux/%s", clicontext.String("target-arch")),
 		"--platform=linux/amd64",
@@ -254,7 +255,8 @@ func build(builderPath string, srcImgPath string, destDir, destFile string, clic
 
 func buildWithLegacyBuilder(builderPath string, srcImgPath, destDir, destFile string, clicontext *cli.Context) error {
 	buildArgs := []string{
-		"build", "--progress=plain",
+		"build",
+		"--progress=plain",
 		"--platform=linux/amd64",
 		"--build-arg", fmt.Sprintf("TARGETARCH=%s", clicontext.String("target-arch")),
 	}
